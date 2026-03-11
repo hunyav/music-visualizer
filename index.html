@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Retro Music Visualizer</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="controls">
+        <h1>Retro Audio Reactor</h1>
+        <p>Capture desktop/tab audio and watch a throwback-style visualizer react in real time.</p>
+        <div class="buttons">
+          <button id="startBtn">Start Visualizer</button>
+          <button id="stopBtn" disabled>Stop</button>
+        </div>
+        <small>Tip: Choose a tab/window with audio when prompted so the visualizer can react.</small>
+      </header>
+      <canvas id="visualizer" width="1440" height="900" aria-label="music visualizer canvas"></canvas>
+    </main>
+    <script src="app.js"></script>
+  </body>
+</html>
