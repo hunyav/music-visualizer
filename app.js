@@ -2,6 +2,7 @@ const canvas = document.getElementById("visualizer");
 const ctx = canvas.getContext("2d");
 const startBtn = document.getElementById("startBtn");
 const stopBtn = document.getElementById("stopBtn");
+const statusText = document.getElementById("statusText");
 
 let audioContext;
 let analyser;
@@ -21,6 +22,10 @@ function resizeCanvas() {
   canvas.width = Math.floor(width * dpr);
   canvas.height = Math.floor(height * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+function setStatus(message) {
+  statusText.textContent = message;
 }
 
 function avgRange(data, start, end) {
@@ -74,15 +79,13 @@ function drawOscilloscope(w, h, beat) {
   const mid = avgRange(spectrum, 36, 180);
   const treble = avgRange(spectrum, 180, 420);
 
-  const ringCount = 4;
-  for (let ring = 0; ring < ringCount; ring += 1) {
+  for (let ring = 0; ring < 4; ring += 1) {
     const ringOffset = ring * 0.21;
     const radius = baseRadius + ring * 46 + bass * 55;
-    const points = 180;
 
     ctx.beginPath();
-    for (let i = 0; i <= points; i += 1) {
-      const t = i / points;
+    for (let i = 0; i <= 180; i += 1) {
+      const t = i / 180;
       const a = t * Math.PI * 2;
       const waveIndex = Math.floor(t * (waveform.length - 1));
       const amp = (waveform[waveIndex] - 128) / 128;
@@ -96,10 +99,11 @@ function drawOscilloscope(w, h, beat) {
     }
 
     const lightness = 58 + ring * 6 + beat * 16;
-    ctx.strokeStyle = `hsla(${(hue + ring * 35) % 360}, 95%, ${lightness}%, ${0.35 + ring * 0.12})`;
+    const ringHue = (hue + ring * 35) % 360;
+    ctx.strokeStyle = `hsla(${ringHue}, 95%, ${lightness}%, ${0.35 + ring * 0.12})`;
     ctx.lineWidth = 1.6 + ring * 0.75;
     ctx.shadowBlur = 15 + ring * 8;
-    ctx.shadowColor = `hsla(${(hue + ring * 35) % 360}, 95%, 70%, 0.75)`;
+    ctx.shadowColor = `hsla(${ringHue}, 95%, 70%, 0.75)`;
     ctx.stroke();
   }
 
@@ -114,9 +118,7 @@ function drawOscilloscope(w, h, beat) {
 
   ctx.restore();
 
-  if (beat > 0.16) {
-    spawnSparks(beat, w / 2, h / 2, baseRadius * 1.6);
-  }
+  if (beat > 0.16) spawnSparks(beat, w / 2, h / 2, baseRadius * 1.6);
 }
 
 function drawSparks(w, h, treble) {
@@ -162,17 +164,59 @@ function renderFrame() {
   animationId = requestAnimationFrame(renderFrame);
 }
 
+function hasAudioTrack(mediaStream) {
+  return mediaStream.getAudioTracks().some((track) => track.readyState === "live");
+}
+
+async function requestDisplayAudio() {
+  const screenStream = await navigator.mediaDevices.getDisplayMedia({
+    video: true,
+    audio: true,
+  });
+
+  if (hasAudioTrack(screenStream)) {
+    setStatus("Connected to shared tab/window audio.");
+    return screenStream;
+  }
+
+  screenStream.getTracks().forEach((track) => track.stop());
+  throw new Error("Screen share started without an audio track.");
+}
+
+async function requestInputDeviceAudio() {
+  const micLikeStream = await navigator.mediaDevices.getUserMedia({
+    audio: {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+    },
+    video: false,
+  });
+
+  if (hasAudioTrack(micLikeStream)) {
+    setStatus("Connected to input device audio.");
+    return micLikeStream;
+  }
+
+  micLikeStream.getTracks().forEach((track) => track.stop());
+  throw new Error("Input device stream has no audio track.");
+}
+
+async function getAudioStream() {
+  try {
+    return await requestDisplayAudio();
+  } catch (displayErr) {
+    console.warn("Display audio capture unavailable, falling back to input devices:", displayErr);
+    setStatus("Screen-share audio unavailable. Trying input devices instead...");
+    return requestInputDeviceAudio();
+  }
+}
+
 async function startVisualizer() {
   if (audioContext) return;
+
   try {
-    stream = await navigator.mediaDevices.getDisplayMedia({
-      video: true,
-      audio: {
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false,
-      },
-    });
+    stream = await getAudioStream();
 
     audioContext = new AudioContext();
     analyser = audioContext.createAnalyser();
@@ -185,16 +229,17 @@ async function startVisualizer() {
     waveform = new Uint8Array(analyser.fftSize);
     spectrum = new Uint8Array(analyser.frequencyBinCount);
 
-    stream.getVideoTracks().forEach((track) => {
+    stream.getTracks().forEach((track) => {
       track.addEventListener("ended", stopVisualizer, { once: true });
     });
 
     startBtn.disabled = true;
     stopBtn.disabled = false;
+    setStatus("Visualizer running. Play audio to drive the animation.");
     renderFrame();
   } catch (err) {
-    console.error("Could not capture audio:", err);
-    alert("Could not capture system/tab audio. Please allow screen share with audio and try again.");
+    console.error("Could not capture usable audio:", err);
+    setStatus("No usable audio stream was detected. Enable tab/system audio or choose a music input device.");
     stopVisualizer();
   }
 }

@@ -1,9 +1,6 @@
 :root {
   color-scheme: dark;
-  --bg: #02020a;
   --panel: rgba(13, 16, 34, 0.75);
-  --accent: #77efff;
-  --accent-two: #f866ff;
   --text: #ecf2ff;
 }
 
@@ -47,7 +44,8 @@ p {
 }
 
 small {
-  opacity: 0.8;
+  display: block;
+  opacity: 0.85;
 }
 
 .buttons {
